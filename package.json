@@ -15,10 +15,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "@the-protobuf-project/codemode": "^0.1.0",
-    "@the-protobuf-project/errors": "^0.1.0",
-    "@the-protobuf-project/network": "^0.1.0",
-    "@the-protobuf-project/protobuf": "^0.1.0",
+    "@the-protobuf-project/codemode": "^0.1.1",
+    "@the-protobuf-project/errors": "^0.1.1",
+    "@the-protobuf-project/network": "^0.1.1",
+    "@the-protobuf-project/protobuf": "^0.1.1",
     "quickjs-emscripten": "^0.32.0"
   },
   "devDependencies": {

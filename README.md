@@ -73,14 +73,40 @@ that pauses for approval and resumes, and a failed script that is rolled back.
 
 ### With Claude
 
+Claude Code:
+
 ```bash
 claude mcp add freebusy -- bun "$PWD/src/mcp.ts"
 ```
 
-Then ask Claude something like *"Find two free padel courts tomorrow evening
-and book the earliest for Ada"*. It gets one `code` tool and writes a script
-against the API in [`gen/codemode/sandbox.d.ts`](gen/codemode/sandbox.d.ts).
-Approvals arrive as MCP elicitation prompts.
+Claude Desktop: add this to `~/Library/Application Support/Claude/claude_desktop_config.json`
+under `mcpServers`, with your own paths (Desktop needs the full path to `bun`),
+then quit and reopen Desktop:
+
+```json
+"freebusy": {
+  "command": "/opt/homebrew/bin/bun",
+  "args": ["/path/to/freebusy-codemode/src/mcp.ts"],
+  "env": { "CODEMODE_DB": "/path/to/freebusy-codemode.db" }
+}
+```
+
+Then ask something like *"Find a free indoor padel court tomorrow between 6
+and 9pm and book the earliest for users/ada"*. Claude gets one `code` tool and
+writes a script against the API in
+[`gen/codemode/sandbox.d.ts`](gen/codemode/sandbox.d.ts).
+
+**Claude cannot approve its own bookings.** The server lists only `code` and
+`codemode_status`, without `codemode_approve`. When a call needs approval, a
+client that supports MCP elicitation asks you directly. Otherwise the script
+waits, and you approve or reject it at **http://127.0.0.1:4791**
+(`CODEMODE_APPROVALS_PORT`), a page served by the MCP server itself. Claude
+then reads the outcome with `codemode_status`.
+
+The page listens on localhost only and accepts approvals only from itself, so
+another website open in your browser cannot approve for you. Any program on
+your machine can still reach it, so an agent with a shell or browser tool could
+too.
 
 ### Against a real freebusy
 
@@ -115,6 +141,7 @@ gen/             generated: types, codecs, clients, connectors, sandbox.d.ts
 src/runtime.ts   Code Mode over the generated catalog, in QuickJS
 src/services.ts  a real freebusy (FREEBUSY_URL) or the in-memory club
 src/mcp.ts       stdio MCP server
+src/approvals.ts the local approval page
 src/demo.ts      the scripted walkthrough
 src/fake/        the in-memory club: availability, holds, reservations
 test/            booking, approval, rollback, expiry and reschedule, end to end

@@ -1,0 +1,12 @@
+# Generates the Code Mode API for freebusy straight from its published module.
+# Bump the label to pick up a new freebusy release, then run `just generate`.
+version: v2
+inputs:
+  - module: buf.build/shokki-engineering/freebusy:v1.0.0-rc.3
+plugins:
+  - local: protoc-gen-codemode
+    out: gen
+    strategy: all
+    opt:
+      - lang=typescript
+      - config=codemode.yaml

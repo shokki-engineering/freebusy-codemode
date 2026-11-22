@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  # The runtime packages come from GitHub Packages, which needs a token.
+  packages: read
+
+jobs:
+  check:
+    name: Check (${{ matrix.runtime }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [bun, node]
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v6
+        if: matrix.runtime == 'node'
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+        if: matrix.runtime == 'bun'
+      - run: bun run typecheck
+        if: matrix.runtime == 'bun'
+      - run: bun run test
+        if: matrix.runtime == 'bun'
+      - run: bun run test:node
+        if: matrix.runtime == 'node'
+      - name: Demo runs
+        if: matrix.runtime == 'bun'
+        run: bun run demo > /dev/null

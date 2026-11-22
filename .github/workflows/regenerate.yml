@@ -1,0 +1,26 @@
+name: Regenerate
+
+# Checks gen/ against the latest protoc-gen-codemode and the pinned freebusy
+# label, weekly and on demand. A diff means `just generate` needs a commit.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+      - run: go install github.com/the-protobuf-project/codemode/plugin/cmd/protoc-gen-codemode@main
+      - run: rm -rf gen && buf generate
+      - run: git diff --exit-code -- gen

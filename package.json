@@ -1,0 +1,30 @@
+{
+  "name": "freebusy-codemode",
+  "private": true,
+  "type": "module",
+  "description": "freebusy's booking API as a Code Mode sandbox: generated from its protos, with approvals and rollback.",
+  "packageManager": "bun@1.4.4",
+  "scripts": {
+    "demo": "bun src/demo.ts",
+    "mcp": "bun src/mcp.ts",
+    "test": "bun test ./test",
+    "test:node": "node --test \"test/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome ci .",
+    "format": "biome format --write ."
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@the-protobuf-project/codemode": "^0.1.0",
+    "@the-protobuf-project/errors": "^0.1.0",
+    "@the-protobuf-project/network": "^0.1.0",
+    "@the-protobuf-project/protobuf": "^0.1.0",
+    "quickjs-emscripten": "^0.32.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@types/bun": "^1.4.5",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}

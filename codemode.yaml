@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/the-protobuf-project/codemode/main/schema/codemode.schema.json
+#
+# How freebusy is exposed to Code Mode. freebusy's protos carry mcp.v1 hints
+# but no codemode.v1 annotations, so the sandbox policy lives here.
+version: v1
+include: ["freebusy.*"]
+naming: lowerCamel
+approval:
+  destructive: require
+  elicitation: require
+  infer_from_aip: true
+discovery: progressive
+executor:
+  timeout: 30s
+  memory_mb: 64
+  outbound: none
+runtime:
+  max_executions: 50
+  paused_ttl: 24h
+  max_value_bytes: 1000000
+  result_budget_tokens: 6000
+mcp:
+  expose: code
+
+services:
+  freebusy.allocation.v1.AllocationService:
+    namespace: availability
+  freebusy.allocation.v1.HoldService:
+    namespace: holds
+    instructions: >-
+      Booking is three steps: find a free window with availability, take a
+      hold with holds.createHold, then confirm it with
+      reservations.createReservation before the hold's expire_time.
+  freebusy.reservation.v1.ReservationService:
+    namespace: reservations
+  freebusy.webhook.v1.WebhookService:
+    namespace: webhooks
+
+methods:
+  # Reads normally re-run on replay. Availability changes with the script's own
+  # holds, so a re-run search would return other courts and the replayed hold
+  # would diverge: log these results instead.
+  freebusy.allocation.v1.AllocationService.SearchAvailability:
+    replay: log
+  freebusy.allocation.v1.AllocationService.CheckAvailability:
+    replay: log
+  freebusy.allocation.v1.AllocationService.ComputeAvailability:
+    replay: log
+  freebusy.allocation.v1.AllocationService.BatchComputeAvailability:
+    replay: log
+  # A hold taken in a script that later fails is released on rollback, so a
+  # half-finished booking never keeps inventory.
+  freebusy.allocation.v1.HoldService.CreateHold:
+    revert:
+      method: ReleaseHold
+      fields: { name: result.name }
+  # Confirming, moving and cancelling bookings affect real customers.
+  freebusy.reservation.v1.ReservationService.CreateReservation:
+    approval: required
+  freebusy.reservation.v1.ReservationService.RescheduleReservation:
+    approval: required
+  freebusy.reservation.v1.ReservationService.CancelReservation:
+    approval: required
+  # Webhooks decide where booking data is sent, and hold its signing secret.
+  freebusy.webhook.v1.WebhookService.CreateWebhook:
+    approval: required
+  freebusy.webhook.v1.WebhookService.UpdateWebhook:
+    approval: required
+  freebusy.webhook.v1.WebhookService.RotateWebhookSecret:
+    approval: required

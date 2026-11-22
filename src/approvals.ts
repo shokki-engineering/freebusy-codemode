@@ -22,7 +22,7 @@ function page(pending: PendingAction[], notice: string): string {
   <h2>${html(p.path)}</h2>
   ${p.message ? `<p>${html(p.message)}</p>` : ""}
   <pre>${html(JSON.stringify(p.args, null, 2))}</pre>
-  <form method="post" action="/approve"><input type="hidden" name="executionId" value="${html(p.executionId)}"><button>Approve</button></form>
+  <form method="post" action="/approve"><input type="hidden" name="executionId" value="${html(p.executionId)}"><input type="hidden" name="seq" value="${p.seq}"><button>Approve this call</button></form>
   <form method="post" action="/reject"><input type="hidden" name="executionId" value="${html(p.executionId)}"><input type="hidden" name="seq" value="${p.seq}"><button class="reject">Reject</button></form>
 </section>`,
   );
@@ -68,12 +68,18 @@ export async function serveApprovals(
 function listen(runtime: CodemodeRuntime, wanted: number): Promise<{ server: Server; port: number }> {
   let host = "";
   let origin = "";
+  // The result of the last approve or reject, shown once on the next GET.
+  let notice = "";
   const server = createServer(async (req, res) => {
     const send = (status: number, html: string) => {
       res.writeHead(status, { "content-type": "text/html; charset=utf-8", "x-frame-options": "DENY" }).end(html);
     };
     if (req.headers.host !== host) return send(421, "wrong host");
-    if (req.method === "GET" && req.url === "/") return send(200, page(await runtime.pending(), ""));
+    if (req.method === "GET" && req.url === "/") {
+      const shown = notice;
+      notice = "";
+      return send(200, page(await runtime.pending(), shown));
+    }
     if (req.method !== "POST") return send(404, "not found");
     const fetchSite = req.headers["sec-fetch-site"];
     if (req.headers.origin !== origin || (fetchSite && fetchSite !== "same-origin")) {
@@ -81,14 +87,15 @@ function listen(runtime: CodemodeRuntime, wanted: number): Promise<{ server: Ser
     }
     const fields = await form(req);
     const executionId = fields.get("executionId") ?? "";
-    let notice: string;
+    const seq = Number(fields.get("seq"));
     try {
       if (req.url === "/approve") {
-        const out = await runtime.approve({ executionId });
+        // Exactly the call shown: others that paused with it pause again.
+        const out = await runtime.approve({ executionId, seq });
         notice =
           out.status === "paused" ? "Approved. The script paused again for the next call." : `Approved: ${out.status}.`;
       } else if (req.url === "/reject") {
-        await runtime.reject({ executionId, seq: Number(fields.get("seq")) });
+        await runtime.reject({ executionId, seq });
         notice = "Rejected. The script stopped; ask Claude to roll it back to free any hold.";
       } else {
         return send(404, "not found");
@@ -96,7 +103,8 @@ function listen(runtime: CodemodeRuntime, wanted: number): Promise<{ server: Ser
     } catch (e) {
       notice = `Failed: ${(e as Error).message}`;
     }
-    send(200, page(await runtime.pending(), notice));
+    // Redirect, so reloading the page cannot send the approval again.
+    res.writeHead(303, { location: "/" }).end();
   });
   return new Promise((resolve, reject) => {
     server.once("error", reject);

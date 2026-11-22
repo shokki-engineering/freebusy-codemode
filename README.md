@@ -108,6 +108,11 @@ each copy has its own club, its own paused executions and its own page, so
 approve on the page Claude names. Against a real freebusy the state is
 freebusy's, and `CODEMODE_DB` keeps paused executions in SQLite across restarts.
 
+Each Approve button approves exactly the call it shows. If a script books two
+courts in parallel, you see two calls and approve each, and approving one
+leaves the other waiting. After a click the page redirects to itself, so
+reloading it never sends an approval twice.
+
 The page listens on localhost only and accepts approvals only from itself, so
 another website open in your browser cannot approve for you. Any program on
 your machine can still reach it, so an agent with a shell or browser tool could

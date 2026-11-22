@@ -28,6 +28,7 @@ export function freebusyMcp(runtime: CodemodeRuntime, port: number) {
     approvalTools: false,
     approvalHint:
       `A person must approve this call. Ask the user to open http://127.0.0.1:${port} and approve or reject it, ` +
-      "then call codemode_status with this executionId. Do not retry the script.",
+      "then call codemode_status with this executionId. The script may pause again for later calls, which the user " +
+      "approves on the same page, so report every call codemode_status lists as approved. Do not retry the script.",
   });
 }

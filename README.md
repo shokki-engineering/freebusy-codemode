@@ -111,7 +111,10 @@ freebusy's, and `CODEMODE_DB` keeps paused executions in SQLite across restarts.
 Each Approve button approves exactly the call it shows. If a script books two
 courts in parallel, you see two calls and approve each, and approving one
 leaves the other waiting. After a click the page redirects to itself, so
-reloading it never sends an approval twice.
+reloading it never sends an approval twice. A history below lists every
+approve and reject with its time and arguments, and `codemode_status` tells
+Claude which calls you approved, so it can report them even when you approved
+several on the page before replying.
 
 The page listens on localhost only and accepts approvals only from itself, so
 another website open in your browser cannot approve for you. Any program on

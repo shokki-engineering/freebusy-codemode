@@ -74,11 +74,14 @@ test("the model gets no approval tool; a person approves on the page", async () 
   const approved = await post("/approve", call);
   assert.equal(approved.status, 303, "redirects, so a reload cannot approve again");
   const done = await client.callTool({ name: "codemode_status", arguments: { executionId: paused.executionId } });
-  assert.deepEqual(done.structuredContent, {
-    status: "completed",
-    executionId: paused.executionId,
-    result: [...club.reservations.keys()][0],
-  });
+  const status = done.structuredContent as { status: string; result: string; approved: { path: string }[] };
+  assert.equal(status.status, "completed");
+  assert.equal(status.result, [...club.reservations.keys()][0]);
+  assert.deepEqual(
+    status.approved.map((c) => c.path),
+    ["reservations.createReservation"],
+    "Claude can tell which calls the person approved",
+  );
 });
 
 test("one click approves one call: a parallel booking needs two", async () => {
@@ -107,4 +110,15 @@ test("one click approves one call: a parallel booking needs two", async () => {
   await post("/approve", (await shown())[0] ?? { executionId: "", seq: "" });
   assert.equal(club.reservations.size, before + 2);
   assert.equal((await shown()).length, 0);
+
+  const page = await (await fetch(`http://127.0.0.1:${port}/`)).text();
+  assert.equal(
+    page.match(/<td>approved<\/td>/g)?.length,
+    3,
+    "history lists every approval, this test's and the first's",
+  );
+  assert.match(page, /&quot;group&quot;:&quot;B&quot;/);
+
+  const status = await runtime.getExecution(out.status === "paused" ? out.executionId : "");
+  assert.equal(status?.approved.length, 2);
 });

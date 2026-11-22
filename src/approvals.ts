@@ -16,7 +16,26 @@ import type { CodemodeRuntime, PendingAction } from "@the-protobuf-project/codem
 const html = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
 
-function page(pending: PendingAction[], notice: string): string {
+/** One decision made on the page, newest first in the history. */
+interface Decision {
+  at: string;
+  decision: "approved" | "rejected";
+  call: PendingAction;
+  outcome: string;
+}
+
+function history(decisions: Decision[]): string {
+  if (decisions.length === 0) return "";
+  const rows = decisions.map(
+    (d) =>
+      `<tr><td>${html(d.at.slice(11, 19))}</td><td>${d.decision}</td><td><code>${html(d.call.path)}</code><pre>${html(
+        JSON.stringify(d.call.args),
+      )}</pre></td><td>${html(d.outcome)}</td></tr>`,
+  );
+  return `<h2>History</h2><table><tr><th>UTC</th><th>Decision</th><th>Call</th><th>Then</th></tr>${rows.join("")}</table>`;
+}
+
+function page(pending: PendingAction[], notice: string, decisions: Decision[]): string {
   const rows = pending.map(
     (p) => `<section>
   <h2>${html(p.path)}</h2>
@@ -35,11 +54,14 @@ section{border:1px solid #8886;border-radius:8px;padding:1rem;margin:1rem 0}
 pre{overflow:auto;background:#8881;padding:.75rem;border-radius:6px}
 form{display:inline}button{font:inherit;padding:.4rem 1rem;margin-right:.5rem;cursor:pointer}
 .reject{background:none}
+table{border-collapse:collapse;width:100%}td,th{border-top:1px solid #8886;padding:.4rem;text-align:left;vertical-align:top}
+td pre{margin:.25rem 0 0;padding:.25rem;font-size:.8em}
 </style></head><body>
 <h1>Waiting for you</h1>
 ${notice ? `<p><strong>${html(notice)}</strong></p>` : ""}
 ${rows.join("\n") || "<p>Nothing is waiting. Calls that need approval appear here.</p>"}
 <p><a href="/">Refresh</a></p>
+${history(decisions)}
 </body></html>`;
 }
 
@@ -70,6 +92,11 @@ function listen(runtime: CodemodeRuntime, wanted: number): Promise<{ server: Ser
   let origin = "";
   // The result of the last approve or reject, shown once on the next GET.
   let notice = "";
+  const decisions: Decision[] = [];
+  const decide = (decision: Decision["decision"], call: PendingAction | undefined, outcome: string) => {
+    if (call) decisions.unshift({ at: new Date().toISOString(), decision, call, outcome });
+    decisions.splice(100);
+  };
   const server = createServer(async (req, res) => {
     const send = (status: number, html: string) => {
       res.writeHead(status, { "content-type": "text/html; charset=utf-8", "x-frame-options": "DENY" }).end(html);
@@ -78,7 +105,7 @@ function listen(runtime: CodemodeRuntime, wanted: number): Promise<{ server: Ser
     if (req.method === "GET" && req.url === "/") {
       const shown = notice;
       notice = "";
-      return send(200, page(await runtime.pending(), shown));
+      return send(200, page(await runtime.pending(), shown, decisions));
     }
     if (req.method !== "POST") return send(404, "not found");
     const fetchSite = req.headers["sec-fetch-site"];
@@ -88,15 +115,18 @@ function listen(runtime: CodemodeRuntime, wanted: number): Promise<{ server: Ser
     const fields = await form(req);
     const executionId = fields.get("executionId") ?? "";
     const seq = Number(fields.get("seq"));
+    const call = (await runtime.pending(executionId)).find((p) => p.seq === seq);
     try {
       if (req.url === "/approve") {
         // Exactly the call shown: others that paused with it pause again.
         const out = await runtime.approve({ executionId, seq });
         notice =
           out.status === "paused" ? "Approved. The script paused again for the next call." : `Approved: ${out.status}.`;
+        decide("approved", call, out.status === "paused" ? "paused for the next call" : out.status);
       } else if (req.url === "/reject") {
         await runtime.reject({ executionId, seq });
         notice = "Rejected. The script stopped; ask Claude to roll it back to free any hold.";
+        decide("rejected", call, "script stopped");
       } else {
         return send(404, "not found");
       }

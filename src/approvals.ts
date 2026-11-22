@@ -49,10 +49,25 @@ async function form(req: IncomingMessage): Promise<URLSearchParams> {
   return new URLSearchParams(body);
 }
 
-/** Serves the approval page for runtime on 127.0.0.1:port. */
-export function serveApprovals(runtime: CodemodeRuntime, port: number): Server {
-  const host = `127.0.0.1:${port}`;
-  const origin = `http://${host}`;
+/**
+ * Serves the approval page for runtime on 127.0.0.1, on port when it is free
+ * and on any free port otherwise, e.g. when a client starts the server twice.
+ * Resolves with the server and the port it listens on.
+ */
+export async function serveApprovals(
+  runtime: CodemodeRuntime,
+  port: number,
+): Promise<{ server: Server; port: number }> {
+  try {
+    return await listen(runtime, port);
+  } catch {
+    return listen(runtime, 0);
+  }
+}
+
+function listen(runtime: CodemodeRuntime, wanted: number): Promise<{ server: Server; port: number }> {
+  let host = "";
+  let origin = "";
   const server = createServer(async (req, res) => {
     const send = (status: number, html: string) => {
       res.writeHead(status, { "content-type": "text/html; charset=utf-8", "x-frame-options": "DENY" }).end(html);
@@ -83,5 +98,14 @@ export function serveApprovals(runtime: CodemodeRuntime, port: number): Server {
     }
     send(200, page(await runtime.pending(), notice));
   });
-  return server.listen(port, "127.0.0.1");
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(wanted, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : wanted;
+      host = `127.0.0.1:${port}`;
+      origin = `http://${host}`;
+      resolve({ server, port });
+    });
+  });
 }

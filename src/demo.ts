@@ -9,7 +9,7 @@ import type { CodeOutput } from "@the-protobuf-project/codemode";
 import { freebusyCodemode } from "./runtime.ts";
 import { freebusyFromEnv } from "./services.ts";
 
-const runtime = freebusyCodemode(freebusyFromEnv());
+const runtime = freebusyCodemode(freebusyFromEnv().services);
 
 function show(title: string, out: unknown): void {
   console.log(`\n== ${title}\n${JSON.stringify(out, null, 2)}`);

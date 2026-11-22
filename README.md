@@ -86,8 +86,7 @@ then quit and reopen Desktop:
 ```json
 "freebusy": {
   "command": "/opt/homebrew/bin/bun",
-  "args": ["/path/to/freebusy-codemode/src/mcp.ts"],
-  "env": { "CODEMODE_DB": "/path/to/freebusy-codemode.db" }
+  "args": ["/path/to/freebusy-codemode/src/mcp.ts"]
 }
 ```
 
@@ -99,9 +98,15 @@ writes a script against the API in
 **Claude cannot approve its own bookings.** The server lists only `code` and
 `codemode_status`, without `codemode_approve`. When a call needs approval, a
 client that supports MCP elicitation asks you directly. Otherwise the script
-waits, and you approve or reject it at **http://127.0.0.1:4791**
-(`CODEMODE_APPROVALS_PORT`), a page served by the MCP server itself. Claude
-then reads the outcome with `codemode_status`.
+waits, and you approve or reject it on a page served by the MCP server itself:
+**http://127.0.0.1:4791** (`CODEMODE_APPROVALS_PORT`), or, if that port is
+taken, the address Claude is given with the paused call. Claude then reads the
+outcome with `codemode_status`.
+
+Claude Desktop may start the server more than once. With the in-memory club
+each copy has its own club, its own paused executions and its own page, so
+approve on the page Claude names. Against a real freebusy the state is
+freebusy's, and `CODEMODE_DB` keeps paused executions in SQLite across restarts.
 
 The page listens on localhost only and accepts approvals only from itself, so
 another website open in your browser cannot approve for you. Any program on

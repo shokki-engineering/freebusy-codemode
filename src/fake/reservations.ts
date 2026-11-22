@@ -15,7 +15,7 @@ import type {
   ReservationService,
   UpdateReservationRequest,
 } from "../../gen/freebusy/reservation/v1/index.ts";
-import { type Club, iso } from "./ledger.ts";
+import { type Club, iso, noFilter } from "./ledger.ts";
 
 /** ReservationService over the in-memory club: confirms holds as bookings. */
 export function reservationService(club: Club): ReservationService {
@@ -68,7 +68,8 @@ export function reservationService(club: Club): ReservationService {
       return club.reservation(name);
     },
 
-    async listReservations(_: ListReservationsRequest): Promise<ListReservationsResponse> {
+    async listReservations({ filter }: ListReservationsRequest): Promise<ListReservationsResponse> {
+      noFilter(filter);
       return { reservations: [...club.reservations.values()] };
     },
 

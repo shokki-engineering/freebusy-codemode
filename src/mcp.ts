@@ -6,23 +6,32 @@
 //   claude mcp add freebusy -- bun "$PWD/src/mcp.ts"
 //
 // The model cannot approve its own calls: approvals come from MCP elicitation
-// when the client supports it, and otherwise from a person on the local page
-// at http://127.0.0.1:4791 (CODEMODE_APPROVALS_PORT).
+// when the client supports it, and otherwise from a person on a local page,
+// http://127.0.0.1:4791 (CODEMODE_APPROVALS_PORT) or, when that port is taken,
+// the free port named in the paused result.
 //
-// Without FREEBUSY_URL it books courts at an in-memory club. Executions are
-// kept in SQLite (CODEMODE_DB), so one paused for approval survives a restart.
+// Without FREEBUSY_URL it books courts at an in-memory club, whose state lives
+// in this process. Paused executions then stay in memory too: resuming one in
+// another process, or after a restart, would replay it against an empty club.
+// With FREEBUSY_URL, CODEMODE_DB keeps them in SQLite across restarts.
 
 import { DatabaseSync } from "node:sqlite";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { type SqliteDatabase, SqliteStore } from "@the-protobuf-project/codemode";
+import { MemoryStore, type SqliteDatabase, SqliteStore, type Store } from "@the-protobuf-project/codemode";
 import { serveApprovals } from "./approvals.ts";
 import { freebusyCodemode, freebusyMcp } from "./runtime.ts";
 import { freebusyFromEnv } from "./services.ts";
 
-const port = Number(process.env.CODEMODE_APPROVALS_PORT ?? 4791);
-const db = new DatabaseSync(process.env.CODEMODE_DB ?? ":memory:") as unknown as SqliteDatabase;
-const runtime = freebusyCodemode(freebusyFromEnv(), new SqliteStore(db));
+const { services, remote } = freebusyFromEnv();
+const dbPath = process.env.CODEMODE_DB;
+let store: Store = new MemoryStore();
+if (remote && dbPath) {
+  store = new SqliteStore(new DatabaseSync(dbPath) as unknown as SqliteDatabase);
+} else if (dbPath) {
+  console.error("CODEMODE_DB ignored: the in-memory club's executions only resume in the process that made them");
+}
 
-serveApprovals(runtime, port).on("error", (e) => console.error(`approval page: ${e.message}`));
-const server = freebusyMcp(runtime, port);
-await server.connect(new StdioServerTransport());
+const runtime = freebusyCodemode(services, store);
+const { port } = await serveApprovals(runtime, Number(process.env.CODEMODE_APPROVALS_PORT ?? 4791));
+console.error(`approvals: http://127.0.0.1:${port}`);
+await freebusyMcp(runtime, port).connect(new StdioServerTransport());

@@ -108,3 +108,15 @@ test("moving a booking keeps the court when the new hold replaces the old", asyn
     old: "RESERVATION_STATE_RESCHEDULED",
   });
 });
+
+test("filters the club cannot evaluate are refused, not ignored", async () => {
+  const { runtime } = setup();
+  const out = await runtime.execute({
+    code: `async () => {
+      try {
+        await availability.searchAvailability({ window: ${window}, filter: 'resource_types = "padel-court"' });
+      } catch (e) { return e.code; }
+    }`,
+  });
+  assert.equal(completed(out), "INVALID_ARGUMENT");
+});

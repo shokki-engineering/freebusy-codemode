@@ -15,7 +15,7 @@ import type {
   ListHoldsResponse,
   ReleaseHoldRequest,
 } from "../../gen/freebusy/allocation/v1/index.ts";
-import { type Club, HOLD_TTL_MS, iso, seconds, span } from "./ledger.ts";
+import { type Club, HOLD_TTL_MS, iso, noFilter, seconds, span } from "./ledger.ts";
 
 const MAX_EXTEND_S = 24 * 60 * 60;
 
@@ -25,6 +25,7 @@ export function holdService(club: Club): HoldService {
     async createHold({ hold, holdId, requestId }: CreateHoldRequest): Promise<Hold> {
       const retried = requestId ? club.requests.get(requestId) : undefined;
       if (retried) return club.hold(retried);
+      noFilter(hold.candidateFilter, "hold.candidate_filter");
       const window = span(hold.window, "hold.window");
       const quantity = hold.quantity || 1;
       if (quantity < 1) throw new StatusError("INVALID_ARGUMENT", "hold.quantity must be at least 1");
@@ -61,7 +62,8 @@ export function holdService(club: Club): HoldService {
       return club.hold(name);
     },
 
-    async listHolds(_: ListHoldsRequest): Promise<ListHoldsResponse> {
+    async listHolds({ filter }: ListHoldsRequest): Promise<ListHoldsResponse> {
+      noFilter(filter);
       club.sweep();
       return { holds: [...club.holds.values()] };
     },

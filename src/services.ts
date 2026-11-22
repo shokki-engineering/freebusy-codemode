@@ -28,7 +28,16 @@ export function remoteFreebusy(baseUrl: string, token?: string): Services {
   };
 }
 
-export function freebusyFromEnv(env: Record<string, string | undefined> = process.env): Services {
+/**
+ * The services for this process. remote is false for the in-memory club,
+ * whose state lives in this process only.
+ */
+export function freebusyFromEnv(env: Record<string, string | undefined> = process.env): {
+  services: Services;
+  remote: boolean;
+} {
   const url = env.FREEBUSY_URL;
-  return url ? remoteFreebusy(url, env.FREEBUSY_TOKEN) : inMemoryFreebusy();
+  return url
+    ? { services: remoteFreebusy(url, env.FREEBUSY_TOKEN), remote: true }
+    : { services: inMemoryFreebusy(), remote: false };
 }

@@ -49,6 +49,19 @@ export function iso(ms: number): string {
   return new Date(ms).toISOString().replace(".000Z", "Z");
 }
 
+/**
+ * The club cannot evaluate AIP-160 filters. Refusing one is better than
+ * ignoring it and answering for every court.
+ */
+export function noFilter(filter: string | undefined, field = "filter"): void {
+  if (filter) {
+    throw new StatusError(
+      "INVALID_ARGUMENT",
+      `${field}: the in-memory club does not evaluate filters; use resources, resourceTypes or candidateResources`,
+    );
+  }
+}
+
 /** Parses a protojson Duration such as "900s". */
 export function seconds(duration: string): number {
   const m = /^(\d+(?:\.\d+)?)s$/.exec(duration);

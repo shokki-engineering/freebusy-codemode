@@ -9,10 +9,13 @@ import { serveApprovals } from "../src/approvals.ts";
 import { freebusyMcp } from "../src/runtime.ts";
 import { evening, setup } from "./helpers.ts";
 
-const port = 47_911;
 const { club, runtime } = setup();
-const page = serveApprovals(runtime, port);
-after(() => page.close());
+const { server: page, port } = await serveApprovals(runtime, 47_911);
+const taken = await serveApprovals(runtime, port);
+after(() => {
+  page.close();
+  taken.server.close();
+});
 
 const book = `async () => {
   const hold = await holds.createHold({ hold: { window: ${JSON.stringify(evening)} } });
@@ -26,6 +29,10 @@ function post(path: string, body: Record<string, string>, origin = `http://127.0
     body: new URLSearchParams(body),
   });
 }
+
+test("a second server on a taken port falls back to a free one", () => {
+  assert.notEqual(taken.port, port);
+});
 
 test("the model gets no approval tool; a person approves on the page", async () => {
   const client = new Client({ name: "desktop", version: "1.0.0" });
@@ -43,7 +50,7 @@ test("the model gets no approval tool; a person approves on the page", async () 
     message: string;
   };
   assert.equal(paused.status, "paused");
-  assert.match(paused.message, /127\.0\.0\.1:47911/);
+  assert.ok(paused.message.includes(`127.0.0.1:${port}`));
 
   const listed = await (await fetch(`http://127.0.0.1:${port}/`)).text();
   assert.match(listed, /reservations\.createReservation/);

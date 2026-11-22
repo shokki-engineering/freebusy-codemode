@@ -14,7 +14,7 @@ import type {
   SearchAvailabilityRequest,
   SearchAvailabilityResponse,
 } from "../../gen/freebusy/allocation/v1/index.ts";
-import { type Club, iso, seconds, span } from "./ledger.ts";
+import { type Club, iso, noFilter, seconds, span } from "./ledger.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_BUCKETS = 500;
@@ -25,6 +25,7 @@ export function availabilityService(club: Club): AllocationService {
     names?.length ? names.map((n) => club.court(n).name) : club.courts.map((c) => c.name);
 
   async function computeAvailability(req: ComputeAvailabilityRequest): Promise<ComputeAvailabilityResponse> {
+    noFilter(req.filter);
     const window = span(req.window);
     const resources = resourcesOf(req.resources);
     const step =
@@ -50,6 +51,7 @@ export function availabilityService(club: Club): AllocationService {
     computeAvailability,
 
     async checkAvailability(req: CheckAvailabilityRequest): Promise<CheckAvailabilityResponse> {
+      noFilter(req.filter);
       const resources = resourcesOf(req.resources);
       const free = club.free(resources, span(req.window));
       const quantity = req.quantity || 1;
@@ -72,6 +74,7 @@ export function availabilityService(club: Club): AllocationService {
     },
 
     async searchAvailability(req: SearchAvailabilityRequest): Promise<SearchAvailabilityResponse> {
+      noFilter(req.filter);
       const window = span(req.window);
       const wanted = req.resourceTypes ?? [];
       const courts = club.courts.filter((c) => wanted.every((t) => c.types.includes(t)));

@@ -23,4 +23,6 @@ jobs:
           setup_only: true
       - run: go install github.com/the-protobuf-project/codemode/plugin/cmd/protoc-gen-codemode@main
       - run: rm -rf gen && buf generate
-      - run: git diff --exit-code -- gen
+      # The header's version stamp follows the plugin build (a pseudo-version
+      # from @main); only a change in the generated code itself is drift.
+      - run: git diff --exit-code -I '^// .protoc-gen-codemode v' -- gen

@@ -18,11 +18,15 @@ import type {
 import { type Club, HOLD_TTL_MS, iso, noFilter, seconds, span } from "./ledger.ts";
 
 const MAX_EXTEND_S = 24 * 60 * 60;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** HoldService over the in-memory club: takes, extends and releases claims. */
 export function holdService(club: Club): HoldService {
   return {
     async createHold({ hold, holdId, requestId }: CreateHoldRequest): Promise<Hold> {
+      if (requestId && !UUID.test(requestId)) {
+        throw new StatusError("INVALID_ARGUMENT", `request_id must be a valid UUID; got "${requestId}".`);
+      }
       const retried = requestId ? club.requests.get(requestId) : undefined;
       if (retried) return club.hold(retried);
       noFilter(hold.candidateFilter, "hold.candidate_filter");

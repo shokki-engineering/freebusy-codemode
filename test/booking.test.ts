@@ -120,3 +120,21 @@ test("filters the club cannot evaluate are refused, not ignored", async () => {
   });
   assert.equal(completed(out), "INVALID_ARGUMENT");
 });
+
+test("a retried hold with the same request_id is the same hold; request_id must be a UUID", async () => {
+  const { club, runtime } = setup();
+  const out = await runtime.execute({
+    code: `async () => {
+      const requestId = "0b9f6c1e-4c4d-4f0a-9d1e-6f2b8a7c3e15";
+      const a = await holds.createHold({ hold: { window: ${window} }, requestId });
+      const b = await holds.createHold({ hold: { window: ${window} }, requestId });
+      try {
+        await holds.createHold({ hold: { window: ${window} }, requestId: "booking-1" });
+      } catch (e) {
+        return { same: a.name === b.name, code: e.code };
+      }
+    }`,
+  });
+  assert.deepEqual(completed(out), { same: true, code: "INVALID_ARGUMENT" });
+  assert.equal(club.holds.size, 1);
+});

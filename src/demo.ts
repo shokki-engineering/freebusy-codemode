@@ -40,7 +40,7 @@ const booking: CodeOutput = await runtime.execute({
     if (found.matches.length === 0) return "nothing free";
     const hold = await holds.createHold({
       hold: { window, candidateResources: found.matches.map((m) => m.resource) },
-      requestId: "demo-booking-1",
+      requestId: "${crypto.randomUUID()}",
     });
     const reservation = await reservations.createReservation({
       reservation: { hold: hold.name, customer: "users/ada", attributes: { players: 4 } },

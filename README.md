@@ -37,7 +37,7 @@ async () => {
   const found = await availability.searchAvailability({ window, resourceTypes: ["padel"] });
   const hold = await holds.createHold({
     hold: { window, candidateResources: found.matches.map((m) => m.resource) },
-    requestId: "booking-1",
+    requestId: "0b9f6c1e-4c4d-4f0a-9d1e-6f2b8a7c3e15",
   });
   const r = await reservations.createReservation({
     reservation: { hold: hold.name, customer: "users/ada" },

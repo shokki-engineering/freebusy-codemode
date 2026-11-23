@@ -99,8 +99,11 @@ writes a script against the API in
 
 **Claude cannot approve its own bookings.** The server lists only `code` and
 `codemode_status`, without `codemode_approve`. When a call needs approval, a
-client that supports MCP elicitation asks you directly. Otherwise the script
-waits, and you approve or reject it on a page served by the MCP server itself:
+client that supports MCP elicitation asks you directly, with a required choice
+between **Reject** and **Approve** and no default. Only choosing Approve runs
+the call; Reject or declining stops the script and rolls it back. A form the
+client cannot show, or an answer without a choice, approves nothing: the call
+keeps waiting, and you approve or reject it on a page served by the MCP server itself:
 **http://127.0.0.1:4791** (`CODEMODE_APPROVALS_PORT`), or, if that port is
 taken, the address Claude is given with the paused call. Claude then reads the
 outcome with `codemode_status`.
@@ -157,6 +160,7 @@ gen/             generated: types, codecs, clients, connectors, sandbox.d.ts
 src/runtime.ts   Code Mode over the generated catalog, in QuickJS
 src/services.ts  a real freebusy (FREEBUSY_URL) or the in-memory club
 src/mcp.ts       stdio MCP server
+src/approver.ts  who decides on a paused call: MCP elicitation today, another surface (e.g. A2UI) later
 src/approvals.ts the local approval page
 src/demo.ts      the scripted walkthrough
 src/fake/        the in-memory club: availability, holds, reservations

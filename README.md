@@ -51,10 +51,12 @@ The runtime adds the safety around it:
 - **Approval.** The script pauses before `createReservation`. A person approves
   it, and the script resumes from its log: the search and the hold are not
   repeated.
-- **Rollback.** If a script fails after taking a hold, rolling it back calls
-  `holds.releaseHold`, so a half-finished booking never keeps a court.
+- **Rollback.** If a script fails, diverges on replay, or has a call rejected
+  after taking a hold, the runtime rolls it back as it ends: `holds.releaseHold`
+  frees the court, and the error says what was undone.
 - **Typed errors.** freebusy's errors reach the script with their gRPC code, so
-  `catch (e) { if (e.code === "RESOURCE_EXHAUSTED") ... }` works.
+  `catch (e) { if (e.reason === "CAPACITY_EXHAUSTED") ... }` works (code
+  `FAILED_PRECONDITION`; `RESOURCE_EXHAUSTED` means the engine is busy).
 
 ## Try it
 
@@ -136,11 +138,12 @@ AIP names. `codemode.yaml` adds what a booking engine needs:
 
 | Method | Policy | Why |
 |---|---|---|
-| `reservations.createReservation`, `rescheduleReservation`, `cancelReservation` | approval required | Real customers' bookings |
+| `reservations.createReservation`, `updateReservation`, `rescheduleReservation`, `cancelReservation` | approval required | Real customers' bookings; an update can hand a booking to another customer |
 | `webhooks.createWebhook`, `updateWebhook`, `rotateWebhookSecret` | approval required | Decide where booking data goes, and its signing secret |
 | `holds.deleteHold`, `webhooks.deleteWebhook` | approval required | Inferred: destructive |
-| `holds.createHold` | reverted by `holds.releaseHold` | Rollback frees the court |
+| `holds.createHold` | reverted by `holds.releaseHold` | A script that ends in an error or a rejection is rolled back (`src/runtime.ts`), freeing the court |
 | `availability.*` | replay: log | Availability changes with the script's own holds, so re-running a search on resume would return other courts |
+| `Get*`, `List*` on holds, reservations and webhooks | replay: log | A read's etag or name feeds a later write; re-run on resume, it returns the etag the script's own write left, and the replay diverges |
 
 Namespaces are renamed too: `allocation` becomes `availability`, `hold` becomes
 `holds`.

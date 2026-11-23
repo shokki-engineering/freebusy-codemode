@@ -38,9 +38,14 @@ export function holdService(club: Club): HoldService {
         : club.courts.map((c) => c.name);
       const free = club.free(candidates, window, hold.replaces);
       if (free.length < quantity) {
-        throw new StatusError("RESOURCE_EXHAUSTED", `only ${free.length} of ${quantity} requested resources are free`, {
-          reason: "CAPACITY_EXHAUSTED",
-        });
+        // freebusy answers FAILED_PRECONDITION here; RESOURCE_EXHAUSTED is its engine being busy.
+        throw new StatusError(
+          "FAILED_PRECONDITION",
+          `only ${free.length} of ${quantity} requested resources are free`,
+          {
+            reason: "CAPACITY_EXHAUSTED",
+          },
+        );
       }
       const name = `holds/${holdId || club.id("h")}` as HoldName;
       if (club.holds.has(name)) throw new StatusError("ALREADY_EXISTS", `${name} already exists`);

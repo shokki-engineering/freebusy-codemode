@@ -1,20 +1,52 @@
 // Copyright 2026 Srikanth K.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type CodemodeRuntime, createCodemode, type Store } from "@the-protobuf-project/codemode";
+import { type CodemodeRuntime, type CodeOutput, createCodemode, type Store } from "@the-protobuf-project/codemode";
 import { createMcpServer } from "@the-protobuf-project/codemode/mcp";
 import { QuickJSExecutor } from "@the-protobuf-project/codemode/quickjs";
 import { catalog, config, connectors, type Services } from "../gen/index.ts";
 
-/** Code Mode over freebusy: the generated catalog, the policy from codemode.yaml, and a QuickJS sandbox. */
+/**
+ * Code Mode over freebusy: the generated catalog, the policy from codemode.yaml, and a QuickJS sandbox.
+ *
+ * An execution that ends in an error or a rejection is rolled back as it ends, so a script that took a
+ * hold and then failed, diverged on replay, or had its booking rejected never keeps a court. The error
+ * the model sees says what was undone.
+ */
 export function freebusyCodemode(services: Services, store?: Store): CodemodeRuntime {
-  return createCodemode({
+  const undone = new Map<string, string>();
+  const runtime: CodemodeRuntime = createCodemode({
     catalog,
     config,
     connectors: connectors(services),
     executor: new QuickJSExecutor(),
     ...(store ? { store } : {}),
+    hooks: {
+      async disposeExecution(executionId, status) {
+        if (status !== "error" && status !== "rejected") return;
+        try {
+          const r = await runtime.rollback({ executionId });
+          const parts = [];
+          if (r.reverted.length > 0) parts.push(`Rolled back: ${r.reverted.join(", ")}.`);
+          for (const f of r.failures) parts.push(`Could not roll back ${f.path}: ${f.error}`);
+          if (parts.length > 0 && status === "error") undone.set(executionId, parts.join(" "));
+        } catch (e) {
+          if (status === "error") undone.set(executionId, `Rollback failed: ${(e as Error).message}`);
+        }
+      },
+    },
   });
+
+  const note = (out: CodeOutput): CodeOutput => {
+    const what = undone.get(out.executionId);
+    undone.delete(out.executionId);
+    return out.status === "error" && what ? { ...out, error: `${out.error} ${what}` } : out;
+  };
+  const execute = runtime.execute.bind(runtime);
+  const approve = runtime.approve.bind(runtime);
+  runtime.execute = async (input) => note(await execute(input));
+  runtime.approve = async (args) => note(await approve(args));
+  return runtime;
 }
 
 /**

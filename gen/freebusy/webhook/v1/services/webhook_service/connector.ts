@@ -54,7 +54,7 @@ export function webhookServiceConnector(service: WebhookService, options: Connec
           input: GetWebhookRequestCodec,
           output: WebhookCodec,
           requiresApproval: false,
-          replay: "reexecute",
+          replay: "log",
 
           call: (request, context) => service.getWebhook(request, { signal: context.signal }),
         }),
@@ -63,7 +63,7 @@ export function webhookServiceConnector(service: WebhookService, options: Connec
           input: ListWebhooksRequestCodec,
           output: ListWebhooksResponseCodec,
           requiresApproval: false,
-          replay: "reexecute",
+          replay: "log",
 
           call: (request, context) => service.listWebhooks(request, { signal: context.signal }),
         }),
@@ -117,7 +117,7 @@ export function webhookServiceConnector(service: WebhookService, options: Connec
           input: GetDeliveryRequestCodec,
           output: DeliveryCodec,
           requiresApproval: false,
-          replay: "reexecute",
+          replay: "log",
 
           call: (request, context) => service.getDelivery(request, { signal: context.signal }),
         }),
@@ -126,7 +126,7 @@ export function webhookServiceConnector(service: WebhookService, options: Connec
           input: ListDeliveriesRequestCodec,
           output: ListDeliveriesResponseCodec,
           requiresApproval: false,
-          replay: "reexecute",
+          replay: "log",
 
           call: (request, context) => service.listDeliveries(request, { signal: context.signal }),
         }),

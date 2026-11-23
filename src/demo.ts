@@ -66,13 +66,7 @@ const failing = await runtime.execute({
     await holds.extendHold({ name: hold.name, duration: "999999s" });
   }`,
 });
-show("A script fails after taking a hold", failing);
-if (failing.status === "error") {
-  show(
-    "Rollback: the generated revert releases the hold",
-    await runtime.rollback({ executionId: failing.executionId }),
-  );
-}
+show("A script fails after taking a hold: the runtime rolls it back, releasing the hold", failing);
 
 console.log(
   `\n== What the model sees for one method\n${(await runtime.describe("holds.createHold")).types.split("\n").slice(0, 12).join("\n")}`,

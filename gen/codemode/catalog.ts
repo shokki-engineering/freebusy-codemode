@@ -2218,6 +2218,8 @@ declare const reservations: {
    * reservation is confirmed.
    *
    * Change who a confirmed reservation is for, or what is kept with it. reservation.name: reservations/{reservation}. Set customer (users/{user}) and/or attributes (any JSON object; replaces the old one whole). update_mask, comma-separated, defaults to the fields set; name customer in it with customer empty to clear it, e.g. "customer,attributes". Send reservation.etag, as reservations.getReservation returned it, to fail instead of overwriting a concurrent change. The time, resources and state cannot change here: reschedule or cancel instead.
+   *
+   * Requires approval: the execution pauses until a person approves this call.
    */
   updateReservation(input: UpdateReservationRequest): Promise<Reservation>;
 
@@ -2482,7 +2484,7 @@ declare const webhooks: {
       rpc: "freebusy.allocation.v1.HoldService.GetHold",
       description: "Retrieves one hold.\n\nAuthoritative on expiry: a hold whose expire_time has passed is reported\nEXPIRED here even if the sweeper has not yet written that state, so a\ncaller never sees an ACTIVE hold that no longer reserves anything.",
       requiresApproval: false,
-      replay: "reexecute",
+      replay: "log",
       readOnly: true,
       declaration: `  /**
    * Retrieves one hold.
@@ -2503,7 +2505,7 @@ declare const webhooks: {
       rpc: "freebusy.allocation.v1.HoldService.ListHolds",
       description: "Lists holds.",
       requiresApproval: false,
-      replay: "reexecute",
+      replay: "log",
       readOnly: true,
       declaration: `  /** Lists holds. */
   listHolds(input: ListHoldsRequest): Promise<ListHoldsResponse>;
@@ -2612,7 +2614,7 @@ declare const webhooks: {
       rpc: "freebusy.reservation.v1.ReservationService.GetReservation",
       description: "Retrieves one reservation.\n\nGet a reservation.",
       requiresApproval: false,
-      replay: "reexecute",
+      replay: "log",
       readOnly: true,
       declaration: `  /**
    * Retrieves one reservation.
@@ -2631,7 +2633,7 @@ declare const webhooks: {
       rpc: "freebusy.reservation.v1.ReservationService.ListReservations",
       description: "Lists reservations.\n\nList reservations. filter per AIP-160, e.g. state = RESERVATION_STATE_CONFIRMED; order_by per AIP-132; page_size defaults to 50.",
       requiresApproval: false,
-      replay: "reexecute",
+      replay: "log",
       readOnly: true,
       declaration: `  /**
    * Lists reservations.
@@ -2649,7 +2651,7 @@ declare const webhooks: {
       name: "updateReservation",
       rpc: "freebusy.reservation.v1.ReservationService.UpdateReservation",
       description: "Updates a confirmed reservation's customer or attributes, AIP-134.\n\nupdate_mask may name only `customer` and `attributes`, and omitted is the\nones the request sets;\neverything else is the engine's, and is changed by CancelReservation or\nRescheduleReservation. `reservation.etag`, when set, must match the\nstored one (AIP-154). Fails with FAILED_PRECONDITION unless the\nreservation is confirmed.\n\nChange who a confirmed reservation is for, or what is kept with it. reservation.name: reservations/{reservation}. Set customer (users/{user}) and/or attributes (any JSON object; replaces the old one whole). update_mask, comma-separated, defaults to the fields set; name customer in it with customer empty to clear it, e.g. \"customer,attributes\". Send reservation.etag, as reservations.getReservation returned it, to fail instead of overwriting a concurrent change. The time, resources and state cannot change here: reschedule or cancel instead.",
-      requiresApproval: false,
+      requiresApproval: true,
       replay: "log",
       readOnly: false,
       declaration: `  /**
@@ -2663,6 +2665,8 @@ declare const webhooks: {
    * reservation is confirmed.
    *
    * Change who a confirmed reservation is for, or what is kept with it. reservation.name: reservations/{reservation}. Set customer (users/{user}) and/or attributes (any JSON object; replaces the old one whole). update_mask, comma-separated, defaults to the fields set; name customer in it with customer empty to clear it, e.g. "customer,attributes". Send reservation.etag, as reservations.getReservation returned it, to fail instead of overwriting a concurrent change. The time, resources and state cannot change here: reschedule or cancel instead.
+   *
+   * Requires approval: the execution pauses until a person approves this call.
    */
   updateReservation(input: UpdateReservationRequest): Promise<Reservation>;
 `,
@@ -2754,7 +2758,7 @@ declare const webhooks: {
       rpc: "freebusy.webhook.v1.WebhookService.GetWebhook",
       description: "Retrieves one webhook, without its secret.\n\nGet a webhook.",
       requiresApproval: false,
-      replay: "reexecute",
+      replay: "log",
       readOnly: true,
       declaration: `  /**
    * Retrieves one webhook, without its secret.
@@ -2773,7 +2777,7 @@ declare const webhooks: {
       rpc: "freebusy.webhook.v1.WebhookService.ListWebhooks",
       description: "Lists webhooks, without their secrets.\n\nList webhooks.",
       requiresApproval: false,
-      replay: "reexecute",
+      replay: "log",
       readOnly: true,
       declaration: `  /**
    * Lists webhooks, without their secrets.
@@ -2896,7 +2900,7 @@ declare const webhooks: {
       rpc: "freebusy.webhook.v1.WebhookService.GetDelivery",
       description: "Retrieves one delivery.\n\nGet one delivery of a webhook.",
       requiresApproval: false,
-      replay: "reexecute",
+      replay: "log",
       readOnly: true,
       declaration: `  /**
    * Retrieves one delivery.
@@ -2915,7 +2919,7 @@ declare const webhooks: {
       rpc: "freebusy.webhook.v1.WebhookService.ListDeliveries",
       description: "Lists a webhook's deliveries.\n\nList a webhook's deliveries, filtered and ordered per AIP-160 and AIP-132.",
       requiresApproval: false,
-      replay: "reexecute",
+      replay: "log",
       readOnly: true,
       declaration: `  /**
    * Lists a webhook's deliveries.

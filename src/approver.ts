@@ -19,32 +19,38 @@ export type Decision = "approve" | "reject" | "defer";
 /** Decides one paused call. */
 export type Approver = (call: PendingAction) => Promise<Decision>;
 
+/** How long a person has to answer the prompt before the call is left waiting on the page. */
+export const promptTimeoutMs = 10 * 60 * 1000;
+
 /** Asks the person through MCP elicitation: a required choice between Reject and Approve, with no default. */
-export function elicitationApprover(server: Server): Approver {
+export function elicitationApprover(server: Server, timeoutMs = promptTimeoutMs): Approver {
   return async (call) => {
     if (!server.getClientCapabilities()?.elicitation) return "defer";
     let answer: Awaited<ReturnType<Server["elicitInput"]>>;
     try {
-      answer = await server.elicitInput({
-        mode: "form",
-        message:
-          `${call.message ?? `Allow ${call.path}?`}\n\n${call.path}(${JSON.stringify(call.args, null, 2)})\n\n` +
-          "Choose Approve to run this call, or Reject to stop the script and roll it back.",
-        requestedSchema: {
-          type: "object",
-          properties: {
-            decision: {
-              type: "string",
-              title: `${call.path}`,
-              oneOf: [
-                { const: "reject", title: "Reject" },
-                { const: "approve", title: "Approve" },
-              ],
+      answer = await server.elicitInput(
+        {
+          mode: "form",
+          message:
+            `${call.message ?? `Allow ${call.path}?`}\n\n${call.path}(${JSON.stringify(call.args, null, 2)})\n\n` +
+            "Choose Approve to run this call, or Reject to stop the script and roll it back.",
+          requestedSchema: {
+            type: "object",
+            properties: {
+              decision: {
+                type: "string",
+                title: `${call.path}`,
+                oneOf: [
+                  { const: "reject", title: "Reject" },
+                  { const: "approve", title: "Approve" },
+                ],
+              },
             },
+            required: ["decision"],
           },
-          required: ["decision"],
         },
-      });
+        { timeout: timeoutMs },
+      );
     } catch {
       return "defer";
     }

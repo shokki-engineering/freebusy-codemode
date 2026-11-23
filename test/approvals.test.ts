@@ -7,6 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ElicitRequestSchema, type ElicitResult } from "@modelcontextprotocol/sdk/types.js";
 import { serveApprovals } from "../src/approvals.ts";
+import { elicitationApprover } from "../src/approver.ts";
 import { freebusyMcp } from "../src/runtime.ts";
 import { evening, setup } from "./helpers.ts";
 
@@ -195,6 +196,20 @@ test("accepting the prompt without choosing approves nothing: the call waits on 
     await runtime.reject({ executionId: out.executionId, seq: 2 });
   }
   assert.equal(club.reservations.size, before);
+});
+
+test("a prompt nobody answers in time leaves the call to the page", async () => {
+  const client = new Client({ name: "away", version: "1.0.0" }, { capabilities: { elicitation: { form: {} } } });
+  client.setRequestHandler(ElicitRequestSchema, () => new Promise<never>(() => undefined));
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await Promise.all([freebusyMcp(runtime, port, (s) => elicitationApprover(s, 50)).connect(a), client.connect(b)]);
+  const out = (await client.callTool({ name: "code", arguments: { code: lateBook(15) } })).structuredContent as {
+    status: string;
+    executionId: string;
+  };
+  assert.equal(out.status, "paused");
+  await runtime.reject({ executionId: out.executionId, seq: 2 });
+  assert.deepEqual(heldCourt3(15), ["HOLD_STATE_RELEASED"], "a reject on the page rolls back too");
 });
 
 test("a client that cannot show the prompt leaves the call to the page", async () => {

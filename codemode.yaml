@@ -48,14 +48,39 @@ methods:
     replay: log
   freebusy.allocation.v1.AllocationService.BatchComputeAvailability:
     replay: log
+  # The same goes for the other reads: a script that reads a hold or booking and
+  # passes its etag or name to a later write must see the same value when it
+  # resumes after an approval. Re-run, the read returns the new etag left by the
+  # script's own write, and the replay diverges. Logged, a value that went stale
+  # while the script waited fails the write with ABORTED, which is what an etag
+  # is for.
+  freebusy.allocation.v1.HoldService.GetHold:
+    replay: log
+  freebusy.allocation.v1.HoldService.ListHolds:
+    replay: log
+  freebusy.reservation.v1.ReservationService.GetReservation:
+    replay: log
+  freebusy.reservation.v1.ReservationService.ListReservations:
+    replay: log
+  freebusy.webhook.v1.WebhookService.GetWebhook:
+    replay: log
+  freebusy.webhook.v1.WebhookService.ListWebhooks:
+    replay: log
+  freebusy.webhook.v1.WebhookService.GetDelivery:
+    replay: log
+  freebusy.webhook.v1.WebhookService.ListDeliveries:
+    replay: log
   # A hold taken in a script that later fails is released on rollback, so a
   # half-finished booking never keeps inventory.
   freebusy.allocation.v1.HoldService.CreateHold:
     revert:
       method: ReleaseHold
       fields: { name: result.name }
-  # Confirming, moving and cancelling bookings affect real customers.
+  # Confirming, moving, changing and cancelling bookings affect real customers.
+  # UpdateReservation can hand a booking to another customer.
   freebusy.reservation.v1.ReservationService.CreateReservation:
+    approval: required
+  freebusy.reservation.v1.ReservationService.UpdateReservation:
     approval: required
   freebusy.reservation.v1.ReservationService.RescheduleReservation:
     approval: required

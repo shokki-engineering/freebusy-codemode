@@ -48,7 +48,7 @@ export function reservationServiceConnector(service: ReservationService, options
           input: GetReservationRequestCodec,
           output: ReservationCodec,
           requiresApproval: false,
-          replay: "reexecute",
+          replay: "log",
 
           call: (request, context) => service.getReservation(request, { signal: context.signal }),
         }),
@@ -57,7 +57,7 @@ export function reservationServiceConnector(service: ReservationService, options
           input: ListReservationsRequestCodec,
           output: ListReservationsResponseCodec,
           requiresApproval: false,
-          replay: "reexecute",
+          replay: "log",
 
           call: (request, context) => service.listReservations(request, { signal: context.signal }),
         }),
@@ -65,7 +65,7 @@ export function reservationServiceConnector(service: ReservationService, options
           name: "updateReservation",
           input: UpdateReservationRequestCodec,
           output: ReservationCodec,
-          requiresApproval: false,
+          requiresApproval: true,
           replay: "log",
 
           call: (request, context) => service.updateReservation(request, { signal: context.signal }),

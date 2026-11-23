@@ -53,7 +53,7 @@ export function holdServiceConnector(service: HoldService, options: ConnectorOpt
           input: GetHoldRequestCodec,
           output: HoldCodec,
           requiresApproval: false,
-          replay: "reexecute",
+          replay: "log",
 
           call: (request, context) => service.getHold(request, { signal: context.signal }),
         }),
@@ -62,7 +62,7 @@ export function holdServiceConnector(service: HoldService, options: ConnectorOpt
           input: ListHoldsRequestCodec,
           output: ListHoldsResponseCodec,
           requiresApproval: false,
-          replay: "reexecute",
+          replay: "log",
 
           call: (request, context) => service.listHolds(request, { signal: context.signal }),
         }),

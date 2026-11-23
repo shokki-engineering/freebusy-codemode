@@ -1682,6 +1682,8 @@ declare const reservations: {
    * reservation is confirmed.
    *
    * Change who a confirmed reservation is for, or what is kept with it. reservation.name: reservations/{reservation}. Set customer (users/{user}) and/or attributes (any JSON object; replaces the old one whole). update_mask, comma-separated, defaults to the fields set; name customer in it with customer empty to clear it, e.g. "customer,attributes". Send reservation.etag, as reservations.getReservation returned it, to fail instead of overwriting a concurrent change. The time, resources and state cannot change here: reschedule or cancel instead.
+   *
+   * Requires approval: the execution pauses until a person approves this call.
    */
   updateReservation(input: UpdateReservationRequest): Promise<Reservation>;
 

@@ -26,7 +26,7 @@ test("one script searches, holds and books; the booking waits for approval", asy
   assert.equal(club.holds.size, 1, "replay reuses the logged hold instead of taking another");
 });
 
-test("a rejected booking leaves no reservation, and rollback frees the hold", async () => {
+test("a rejected booking leaves no reservation, and the runtime frees the hold", async () => {
   const { club, runtime } = setup();
   const out = await runtime.execute({
     code: `async () => {
@@ -39,14 +39,13 @@ test("a rejected booking leaves no reservation, and rollback frees the hold", as
   const seq = out.pending[0]?.seq ?? -1;
   assert.equal(await runtime.reject({ executionId: out.executionId, seq }), true);
   assert.equal(club.reservations.size, 0);
-  await runtime.rollback({ executionId: out.executionId });
   assert.deepEqual(
     [...club.holds.values()].map((h) => h.state),
     ["HOLD_STATE_RELEASED"],
   );
 });
 
-test("rollback releases a hold taken by a script that failed", async () => {
+test("a script that fails after taking a hold is rolled back as it ends", async () => {
   const { club, runtime } = setup();
   const out = await runtime.execute({
     code: `async () => {
@@ -56,7 +55,7 @@ test("rollback releases a hold taken by a script that failed", async () => {
   });
   assert.equal(out.status, "error");
   if (out.status !== "error") return;
-  await runtime.rollback({ executionId: out.executionId });
+  assert.match(out.error, /Rolled back: holds\.createHold\./);
   assert.deepEqual(
     [...club.holds.values()].map((h) => h.state),
     ["HOLD_STATE_RELEASED"],
@@ -68,10 +67,10 @@ test("double booking fails with the engine's error code, caught in the sandbox",
   const out = await runtime.execute({
     code: `async () => {
       await holds.createHold({ hold: { window: ${window}, quantity: 4 } });
-      try { await holds.createHold({ hold: { window: ${window} } }); } catch (e) { return e.code; }
+      try { await holds.createHold({ hold: { window: ${window} } }); } catch (e) { return [e.code, e.reason]; }
     }`,
   });
-  assert.equal(completed(out), "RESOURCE_EXHAUSTED");
+  assert.deepEqual(completed(out), ["FAILED_PRECONDITION", "CAPACITY_EXHAUSTED"]);
 });
 
 test("an unconfirmed hold expires and frees its court", async () => {
@@ -149,4 +148,64 @@ test("resourceTypes matches a court with any of the listed types, as freebusy do
     }`,
   });
   assert.deepEqual(completed(out), ["resources/court-1", "resources/court-2", "resources/court-4"]);
+});
+
+test("a write that uses a read's etag resumes after approval without diverging", async () => {
+  const { club, runtime } = setup();
+  const out = await runtime.execute({
+    code: `async () => {
+      const hold = await holds.createHold({ hold: { window: ${window} } });
+      const read = await holds.getHold({ name: hold.name });
+      await holds.extendHold({ name: hold.name, duration: "600s", etag: read.etag });
+      const r = await reservations.createReservation({ reservation: { hold: hold.name } });
+      return r.state;
+    }`,
+  });
+  assert.equal(out.status, "paused", JSON.stringify(out));
+  if (out.status !== "paused") return;
+  assert.equal(completed(await runtime.approve({ executionId: out.executionId })), "RESERVATION_STATE_CONFIRMED");
+  assert.equal(club.holds.size, 1);
+});
+
+test("a replay that diverges is rolled back", async () => {
+  const { club, runtime } = setup();
+  const out = await runtime.execute({
+    code: `async () => {
+      const hold = await holds.createHold({ hold: { window: ${window} } });
+      await holds.extendHold({ name: hold.name, duration: String(Date.now() % 1000 + 1) + "s" });
+      return reservations.createReservation({ reservation: { hold: hold.name } });
+    }`,
+  });
+  assert.equal(out.status, "paused", JSON.stringify(out));
+  if (out.status !== "paused") return;
+  await new Promise((r) => setTimeout(r, 5));
+  const done = await runtime.approve({ executionId: out.executionId });
+  assert.equal(done.status, "error", JSON.stringify(done));
+  if (done.status !== "error") return;
+  assert.match(done.error, /replay diverged[\s\S]*Rolled back: .*holds\.createHold/);
+  assert.equal(club.reservations.size, 0);
+  assert.deepEqual(
+    [...club.holds.values()].map((h) => h.state),
+    ["HOLD_STATE_RELEASED"],
+  );
+});
+
+test("changing a booking's customer waits for approval", async () => {
+  const { club, runtime } = setup();
+  const booked = await runtime.execute({
+    code: `async () => {
+      const hold = await holds.createHold({ hold: { window: ${window} } });
+      return (await reservations.createReservation({ reservation: { hold: hold.name, customer: "users/ada" } })).name;
+    }`,
+  });
+  if (booked.status !== "paused") assert.fail(JSON.stringify(booked));
+  const name = completed(await runtime.approve({ executionId: booked.executionId }));
+  const out = await runtime.execute({
+    code: `async () => {
+      const r = await reservations.getReservation({ name: "${name}" });
+      return (await reservations.updateReservation({ reservation: { ...r, customer: "users/mallory" }, updateMask: "customer" })).customer;
+    }`,
+  });
+  assert.equal(out.status, "paused", JSON.stringify(out));
+  assert.equal([...club.reservations.values()][0]?.customer, "users/ada");
 });

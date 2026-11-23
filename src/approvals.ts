@@ -125,7 +125,7 @@ function listen(runtime: CodemodeRuntime, wanted: number): Promise<{ server: Ser
         decide("approved", call, out.status === "paused" ? "paused for the next call" : out.status);
       } else if (req.url === "/reject") {
         await runtime.reject({ executionId, seq });
-        notice = "Rejected. The script stopped; ask Claude to roll it back to free any hold.";
+        notice = "Rejected. The script stopped and was rolled back, freeing any hold it took.";
         decide("rejected", call, "script stopped");
       } else {
         return send(404, "not found");

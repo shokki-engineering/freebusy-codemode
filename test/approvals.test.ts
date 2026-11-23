@@ -5,7 +5,9 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { ElicitRequestSchema, type ElicitResult } from "@modelcontextprotocol/sdk/types.js";
 import { serveApprovals } from "../src/approvals.ts";
+import { elicitationApprover } from "../src/approver.ts";
 import { freebusyMcp } from "../src/runtime.ts";
 import { evening, setup } from "./helpers.ts";
 
@@ -121,4 +123,100 @@ test("one click approves one call: a parallel booking needs two", async () => {
 
   const status = await runtime.getExecution(out.status === "paused" ? out.executionId : "");
   assert.equal(status?.approved.length, 2);
+});
+
+/** A client that answers every approval prompt with answer, recording the prompts. */
+async function asking(answer: ElicitResult | (() => never)) {
+  const prompts: { requestedSchema: unknown }[] = [];
+  const client = new Client({ name: "elicits", version: "1.0.0" }, { capabilities: { elicitation: { form: {} } } });
+  client.setRequestHandler(ElicitRequestSchema, async (request) => {
+    prompts.push(request.params as { requestedSchema: unknown });
+    if (typeof answer === "function") answer();
+    return answer as ElicitResult;
+  });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await Promise.all([freebusyMcp(runtime, port).connect(a), client.connect(b)]);
+  const run = async (code: string) =>
+    (await client.callTool({ name: "code", arguments: { code } })).structuredContent as {
+      status: string;
+      executionId: string;
+      error?: string;
+    };
+  return { run, prompts };
+}
+
+const lateBook = (hour: number) => `async () => {
+  const window = { startTime: "2026-12-02T${hour}:00:00Z", endTime: "2026-12-02T${hour + 1}:00:00Z" };
+  const hold = await holds.createHold({ hold: { window, candidateResources: ["resources/court-3"] } });
+  return (await reservations.createReservation({ reservation: { hold: hold.name } })).name;
+}`;
+
+const heldCourt3 = (hour: number) =>
+  [...club.holds.values()].filter((h) => h.window.startTime === `2026-12-02T${hour}:00:00Z`).map((h) => h.state);
+
+test("the prompt is a required choice between Reject and Approve, with no default", async () => {
+  const { run, prompts } = await asking({ action: "accept", content: { decision: "approve" } });
+  const out = await run(lateBook(10));
+  assert.equal(out.status, "completed", JSON.stringify(out));
+  const schema = prompts[0]?.requestedSchema as {
+    required: string[];
+    properties: { decision: { default?: unknown; oneOf: { const: string }[] } };
+  };
+  assert.deepEqual(schema.required, ["decision"]);
+  assert.equal(schema.properties.decision.default, undefined);
+  assert.deepEqual(
+    schema.properties.decision.oneOf.map((o) => o.const),
+    ["reject", "approve"],
+  );
+});
+
+test("choosing Reject ends the script, books nothing and releases the hold", async () => {
+  const before = club.reservations.size;
+  const { run } = await asking({ action: "accept", content: { decision: "reject" } });
+  const out = await run(lateBook(11));
+  assert.equal(out.status, "error");
+  assert.match(out.error ?? "", /rejected reservations\.createReservation\. Rolled back: holds\.createHold\./);
+  assert.equal(club.reservations.size, before);
+  assert.deepEqual(heldCourt3(11), ["HOLD_STATE_RELEASED"]);
+});
+
+test("declining the prompt rejects the call", async () => {
+  const before = club.reservations.size;
+  const { run } = await asking({ action: "decline" });
+  assert.equal((await run(lateBook(12))).status, "error");
+  assert.equal(club.reservations.size, before);
+});
+
+test("accepting the prompt without choosing approves nothing: the call waits on the page", async () => {
+  const before = club.reservations.size;
+  for (const content of [{}, { approve: true }, { decision: "yes" }]) {
+    const { run } = await asking({ action: "accept", content } as ElicitResult);
+    const out = await run(lateBook(13));
+    assert.equal(out.status, "paused", JSON.stringify({ content, out }));
+    await runtime.reject({ executionId: out.executionId, seq: 2 });
+  }
+  assert.equal(club.reservations.size, before);
+});
+
+test("a prompt nobody answers in time leaves the call to the page", async () => {
+  const client = new Client({ name: "away", version: "1.0.0" }, { capabilities: { elicitation: { form: {} } } });
+  client.setRequestHandler(ElicitRequestSchema, () => new Promise<never>(() => undefined));
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await Promise.all([freebusyMcp(runtime, port, (s) => elicitationApprover(s, 50)).connect(a), client.connect(b)]);
+  const out = (await client.callTool({ name: "code", arguments: { code: lateBook(15) } })).structuredContent as {
+    status: string;
+    executionId: string;
+  };
+  assert.equal(out.status, "paused");
+  await runtime.reject({ executionId: out.executionId, seq: 2 });
+  assert.deepEqual(heldCourt3(15), ["HOLD_STATE_RELEASED"], "a reject on the page rolls back too");
+});
+
+test("a client that cannot show the prompt leaves the call to the page", async () => {
+  const { run } = await asking(() => {
+    throw new Error("cannot render");
+  });
+  const out = await run(lateBook(14));
+  assert.equal(out.status, "paused");
+  await runtime.reject({ executionId: out.executionId, seq: 2 });
 });

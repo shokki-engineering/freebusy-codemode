@@ -11,8 +11,9 @@ test("one script searches, holds and books; the booking waits for approval", asy
   const { club, runtime } = setup();
   const out = await runtime.execute({
     code: `async () => {
-      const found = await availability.searchAvailability({ window: ${window}, resourceTypes: ["padel", "indoor"] });
-      const hold = await holds.createHold({ hold: { window: ${window}, candidateResources: found.matches.map((m) => m.resource) } });
+      const found = await availability.searchAvailability({ window: ${window}, resourceTypes: ["padel"] });
+      const indoor = found.matches.filter((m) => m.resourceTypes.includes("indoor"));
+      const hold = await holds.createHold({ hold: { window: ${window}, candidateResources: indoor.map((m) => m.resource) } });
       const r = await reservations.createReservation({ reservation: { hold: hold.name, customer: "users/ada" } });
       return { resources: r.resources, state: r.state };
     }`,
@@ -137,4 +138,15 @@ test("a retried hold with the same request_id is the same hold; request_id must 
   });
   assert.deepEqual(completed(out), { same: true, code: "INVALID_ARGUMENT" });
   assert.equal(club.holds.size, 1);
+});
+
+test("resourceTypes matches a court with any of the listed types, as freebusy does", async () => {
+  const { runtime } = setup();
+  const out = await runtime.execute({
+    code: `async () => {
+      const found = await availability.searchAvailability({ window: ${window}, resourceTypes: ["indoor", "tennis"] });
+      return found.matches.map((m) => m.resource);
+    }`,
+  });
+  assert.deepEqual(completed(out), ["resources/court-1", "resources/court-2", "resources/court-4"]);
 });

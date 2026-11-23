@@ -25,8 +25,10 @@ show(
       const out = [];
       for (const hour of [18, 19, 20]) {
         const window = { startTime: day + "T" + hour + ":00:00Z", endTime: day + "T" + (hour + 1) + ":00:00Z" };
-        const found = await availability.searchAvailability({ window, resourceTypes: ["padel", "indoor"] });
-        out.push({ hour, courts: found.matches.map((m) => m.displayName) });
+        // resourceTypes matches any listed type, so narrow padel courts to indoor ones here.
+        const found = await availability.searchAvailability({ window, resourceTypes: ["padel"] });
+        const indoor = found.matches.filter((m) => m.resourceTypes.includes("indoor"));
+        out.push({ hour, courts: indoor.map((m) => m.displayName) });
       }
       return out;
     }`,

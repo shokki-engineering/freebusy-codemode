@@ -6,7 +6,8 @@
 //   claude mcp add freebusy -- bun "$PWD/src/mcp.ts"
 //
 // The model cannot approve its own calls: approvals come from MCP elicitation
-// when the client supports it, and otherwise from a person on a local page,
+// when the client supports it (FREEBUSY_APPROVAL=prompt, the default; =page
+// skips it), and otherwise from a person on a local page,
 // http://127.0.0.1:4791 (CODEMODE_APPROVALS_PORT) or, when that port is taken,
 // the free port named in the paused result.
 //
@@ -19,6 +20,7 @@ import { DatabaseSync } from "node:sqlite";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { MemoryStore, type SqliteDatabase, SqliteStore, type Store } from "@the-protobuf-project/codemode";
 import { serveApprovals } from "./approvals.ts";
+import { approverFromEnv } from "./approver.ts";
 import { freebusyCodemode, freebusyMcp } from "./runtime.ts";
 import { freebusyFromEnv } from "./services.ts";
 
@@ -31,7 +33,8 @@ if (remote && dbPath) {
   console.error("CODEMODE_DB ignored: the in-memory club's executions only resume in the process that made them");
 }
 
+const approver = approverFromEnv(process.env.FREEBUSY_APPROVAL);
 const runtime = freebusyCodemode(services, store);
 const { port } = await serveApprovals(runtime, Number(process.env.CODEMODE_APPROVALS_PORT ?? 4791));
 console.error(`approvals: http://127.0.0.1:${port}`);
-await freebusyMcp(runtime, port).connect(new StdioServerTransport());
+await freebusyMcp(runtime, port, approver).connect(new StdioServerTransport());

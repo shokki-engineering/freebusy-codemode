@@ -163,8 +163,8 @@ test/            booking, approval, rollback, expiry and reschedule, end to end
 ## Regenerating
 
 ```bash
-# codemode.yaml's services and methods sections need a plugin newer than v0.1.0
-go install github.com/the-protobuf-project/codemode/plugin/cmd/protoc-gen-codemode@main
+# or: brew install --cask the-protobuf-project/tap/protoc-gen-codemode
+go install github.com/the-protobuf-project/codemode/plugin/cmd/protoc-gen-codemode@v0.3.0
 just generate
 ```
 

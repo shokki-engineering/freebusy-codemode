@@ -77,7 +77,8 @@ export function availabilityService(club: Club): AllocationService {
       noFilter(req.filter);
       const window = span(req.window);
       const wanted = req.resourceTypes ?? [];
-      const courts = club.courts.filter((c) => wanted.every((t) => c.types.includes(t)));
+      // Like freebusy: a court matches when it carries any of the wanted types.
+      const courts = club.courts.filter((c) => wanted.length === 0 || wanted.some((t) => c.types.includes(t)));
       const free = new Set(
         club.free(
           courts.map((c) => c.name),

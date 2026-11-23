@@ -108,6 +108,10 @@ keeps waiting, and you approve or reject it on a page served by the MCP server i
 taken, the address Claude is given with the paused call. Claude then reads the
 outcome with `codemode_status`.
 
+Set `FREEBUSY_APPROVAL=page` to skip the prompt and send every call to the page,
+e.g. when your client's prompt cannot be trusted to send the choice you made.
+The default, `prompt`, asks through elicitation first.
+
 Claude Desktop may start the server more than once. With the in-memory club
 each copy has its own club, its own paused executions and its own page, so
 approve on the page Claude names. Against a real freebusy the state is

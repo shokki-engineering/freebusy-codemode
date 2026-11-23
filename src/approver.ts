@@ -62,6 +62,21 @@ export function elicitationApprover(server: Server, timeoutMs = promptTimeoutMs)
   };
 }
 
+/** Never asks: every paused call waits for a person on the local approval page. */
+export function pageApprover(): Approver {
+  return async () => "defer";
+}
+
+/**
+ * The approver FREEBUSY_APPROVAL names: "prompt" (the default) asks through MCP
+ * elicitation, "page" sends every call to the local approval page.
+ */
+export function approverFromEnv(value: string | undefined): (server: Server) => Approver {
+  if (value === undefined || value === "" || value === "prompt") return (server) => elicitationApprover(server);
+  if (value === "page") return () => pageApprover();
+  throw new Error(`FREEBUSY_APPROVAL must be "prompt" or "page", not ${JSON.stringify(value)}`);
+}
+
 /** While an execution is paused, asks the approver about its next call and resumes or rejects it. */
 export async function settle(runtime: CodemodeRuntime, out: CodeOutput, approver: Approver): Promise<CodeOutput> {
   let current = out;

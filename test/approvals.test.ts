@@ -7,7 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ElicitRequestSchema, type ElicitResult } from "@modelcontextprotocol/sdk/types.js";
 import { serveApprovals } from "../src/approvals.ts";
-import { elicitationApprover } from "../src/approver.ts";
+import { approverFromEnv, elicitationApprover, pageApprover } from "../src/approver.ts";
 import { freebusyMcp } from "../src/runtime.ts";
 import { evening, setup } from "./helpers.ts";
 
@@ -210,6 +210,28 @@ test("a prompt nobody answers in time leaves the call to the page", async () => 
   assert.equal(out.status, "paused");
   await runtime.reject({ executionId: out.executionId, seq: 2 });
   assert.deepEqual(heldCourt3(15), ["HOLD_STATE_RELEASED"], "a reject on the page rolls back too");
+});
+
+test("FREEBUSY_APPROVAL=page never prompts: every call waits on the page", async () => {
+  let prompted = 0;
+  const client = new Client({ name: "page-only", version: "1.0.0" }, { capabilities: { elicitation: { form: {} } } });
+  client.setRequestHandler(ElicitRequestSchema, async () => {
+    prompted += 1;
+    return { action: "accept", content: { decision: "approve" } };
+  });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await Promise.all([freebusyMcp(runtime, port, approverFromEnv("page")).connect(a), client.connect(b)]);
+  const out = (await client.callTool({ name: "code", arguments: { code: lateBook(16) } })).structuredContent as {
+    status: string;
+    executionId: string;
+    message: string;
+  };
+  assert.equal(out.status, "paused");
+  assert.ok(out.message.includes(`127.0.0.1:${port}`));
+  assert.equal(prompted, 0, "the client was never asked");
+  await runtime.reject({ executionId: out.executionId, seq: 2 });
+  assert.equal(await pageApprover()({} as never), "defer");
+  assert.throws(() => approverFromEnv("auto"), /must be "prompt" or "page"/);
 });
 
 test("a client that cannot show the prompt leaves the call to the page", async () => {

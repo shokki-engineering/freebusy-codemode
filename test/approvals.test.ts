@@ -42,6 +42,24 @@ async function shown(): Promise<{ executionId: string; seq: string }[]> {
   return [...forms].map((m) => ({ executionId: m[1] ?? "", seq: m[2] ?? "" }));
 }
 
+test("the page says which decision was made, in words", async () => {
+  const out = await runtime.execute({ code: lateBook(17) });
+  assert.equal(out.status, "paused");
+  const page = await (await fetch(`http://127.0.0.1:${port}/`)).text();
+  const section = page.slice(page.indexOf("<section>"), page.indexOf("</section>"));
+  assert.ok(
+    section.indexOf('action="/reject"') < section.indexOf('action="/approve"'),
+    "Reject comes first, apart from Approve",
+  );
+  assert.match(section, /Reject: stop and roll back/);
+  assert.match(section, /Approve: run this call/);
+  const [call] = await shown();
+  await post("/reject", call ?? { executionId: "", seq: "" });
+  const after = await (await fetch(`http://127.0.0.1:${port}/`)).text();
+  assert.match(after, /class="notice rejected">You rejected reservations\.createReservation\./);
+  assert.deepEqual(heldCourt3(17), ["HOLD_STATE_RELEASED"]);
+});
+
 test("a second server on a taken port falls back to a free one", () => {
   assert.notEqual(taken.port, port);
 });

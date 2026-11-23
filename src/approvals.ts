@@ -41,8 +41,10 @@ function page(pending: PendingAction[], notice: string, decisions: Decision[]): 
   <h2>${html(p.path)}</h2>
   ${p.message ? `<p>${html(p.message)}</p>` : ""}
   <pre>${html(JSON.stringify(p.args, null, 2))}</pre>
-  <form method="post" action="/approve"><input type="hidden" name="executionId" value="${html(p.executionId)}"><input type="hidden" name="seq" value="${p.seq}"><button>Approve this call</button></form>
-  <form method="post" action="/reject"><input type="hidden" name="executionId" value="${html(p.executionId)}"><input type="hidden" name="seq" value="${p.seq}"><button class="reject">Reject</button></form>
+  <div class="choices">
+  <form method="post" action="/reject"><input type="hidden" name="executionId" value="${html(p.executionId)}"><input type="hidden" name="seq" value="${p.seq}"><button class="reject">✕ Reject: stop and roll back</button></form>
+  <form method="post" action="/approve"><input type="hidden" name="executionId" value="${html(p.executionId)}"><input type="hidden" name="seq" value="${p.seq}"><button class="approve">✓ Approve: run this call</button></form>
+  </div>
 </section>`,
   );
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -52,13 +54,17 @@ function page(pending: PendingAction[], notice: string, decisions: Decision[]): 
 body{max-width:44rem;margin:2rem auto;padding:0 1rem}
 section{border:1px solid #8886;border-radius:8px;padding:1rem;margin:1rem 0}
 pre{overflow:auto;background:#8881;padding:.75rem;border-radius:6px}
-form{display:inline}button{font:inherit;padding:.4rem 1rem;margin-right:.5rem;cursor:pointer}
-.reject{background:none}
+.choices{display:flex;justify-content:space-between;gap:3rem;flex-wrap:wrap;margin-top:1rem}
+button{font:inherit;font-weight:600;padding:.6rem 1.2rem;border:0;border-radius:6px;color:#fff;cursor:pointer}
+.reject{background:#b3261e}.approve{background:#1e7d32}
+.notice{padding:.75rem 1rem;border-radius:6px;font-weight:600}
+.notice.rejected{background:#b3261e22;border-left:4px solid #b3261e}
+.notice.approved{background:#1e7d3222;border-left:4px solid #1e7d32}
 table{border-collapse:collapse;width:100%}td,th{border-top:1px solid #8886;padding:.4rem;text-align:left;vertical-align:top}
 td pre{margin:.25rem 0 0;padding:.25rem;font-size:.8em}
 </style></head><body>
 <h1>Waiting for you</h1>
-${notice ? `<p><strong>${html(notice)}</strong></p>` : ""}
+${notice ? `<p class="notice ${notice.startsWith("You rejected") ? "rejected" : notice.startsWith("You approved") ? "approved" : ""}">${html(notice)}</p>` : ""}
 ${rows.join("\n") || "<p>Nothing is waiting. Calls that need approval appear here.</p>"}
 <p><a href="/">Refresh</a></p>
 ${history(decisions)}
@@ -120,12 +126,15 @@ function listen(runtime: CodemodeRuntime, wanted: number): Promise<{ server: Ser
       if (req.url === "/approve") {
         // Exactly the call shown: others that paused with it pause again.
         const out = await runtime.approve({ executionId, seq });
+        const what = call?.path ?? "the call";
         notice =
-          out.status === "paused" ? "Approved. The script paused again for the next call." : `Approved: ${out.status}.`;
+          out.status === "paused"
+            ? `You approved ${what}. The script paused again for the next call.`
+            : `You approved ${what}. The script ended: ${out.status}.`;
         decide("approved", call, out.status === "paused" ? "paused for the next call" : out.status);
       } else if (req.url === "/reject") {
         await runtime.reject({ executionId, seq });
-        notice = "Rejected. The script stopped and was rolled back, freeing any hold it took.";
+        notice = `You rejected ${call?.path ?? "the call"}. The script stopped and was rolled back, freeing any hold it took.`;
         decide("rejected", call, "script stopped");
       } else {
         return send(404, "not found");
